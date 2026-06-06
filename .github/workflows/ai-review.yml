@@ -238,11 +238,25 @@ jobs:
               sys.exit(0)
 
           content = open(result_path).read()
+
+          result = None
           try:
               result = json.loads(content)
           except Exception:
-              match = re.search(r'\{.*\}', content, re.DOTALL)
-              result = json.loads(match.group()) if match else {"approved": True}
+              # Model may wrap JSON in markdown or add extra text — scan for first valid object
+              decoder = json.JSONDecoder()
+              for match in re.finditer(r'\{', content):
+                  try:
+                      obj, _ = decoder.raw_decode(content, match.start())
+                      if "approved" in obj:
+                          result = obj
+                          break
+                  except Exception:
+                      continue
+
+          if result is None:
+              print("AI Review Gate: não foi possível parsear resultado — assumindo aprovado.")
+              sys.exit(0)
 
           approved = result.get("approved", True)
           if approved:
