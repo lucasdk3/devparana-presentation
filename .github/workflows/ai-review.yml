@@ -1,0 +1,223 @@
+name: AI Pull Request Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "app-example/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL || 'claude-haiku-4-5-20251001' }}
+  REVIEWER_TEMPERATURE: ${{ vars.REVIEWER_TEMPERATURE || '' }}
+  REVIEWER_MAX_TOKENS: ${{ vars.REVIEWER_MAX_TOKENS || '' }}
+  REVIEWER_TRIAGE_MAX_TOKENS: ${{ vars.REVIEWER_TRIAGE_MAX_TOKENS || '256' }}
+
+jobs:
+  triage:
+    name: Triage
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.triage.outputs.mode }}
+      should_review: ${{ steps.triage.outputs.should_review }}
+      agents: ${{ steps.triage.outputs.agents }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate diff
+        run: git diff origin/${{ github.base_ref }}...HEAD -- app-example/ > /tmp/pr.diff
+
+      - name: Run triage
+        id: triage
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m reviewer triage \
+            --diff /tmp/pr.diff \
+            --pr-title "${{ github.event.pull_request.title }}" \
+            --output github-output
+
+  generic-review:
+    name: Generic Review
+    runs-on: ubuntu-latest
+    needs: triage
+    if: |
+      needs.triage.outputs.mode == 'generic' ||
+      (needs.triage.outputs.mode == 'auto' && needs.triage.outputs.should_review == 'true')
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate diff
+        run: git diff origin/${{ github.base_ref }}...HEAD -- app-example/ > /tmp/pr.diff
+
+      - name: Run generic review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m reviewer review generic --diff /tmp/pr.diff > /tmp/generic-result.txt
+          cat /tmp/generic-result.txt
+
+      - name: Upload generic result
+        uses: actions/upload-artifact@v4
+        with:
+          name: generic-result
+          path: /tmp/generic-result.txt
+
+  structured-review:
+    name: Structured Review
+    runs-on: ubuntu-latest
+    needs: triage
+    if: |
+      needs.triage.outputs.mode == 'structured' ||
+      (needs.triage.outputs.mode == 'auto' && needs.triage.outputs.should_review == 'true')
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate diff
+        run: git diff origin/${{ github.base_ref }}...HEAD -- app-example/ > /tmp/pr.diff
+
+      - name: Run structured review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m reviewer review structured \
+            --diff /tmp/pr.diff \
+            --context-dir app-example \
+            --pr-title "${{ github.event.pull_request.title }}" \
+            > /tmp/structured-result.json
+          cat /tmp/structured-result.json
+
+      - name: Upload structured result
+        uses: actions/upload-artifact@v4
+        with:
+          name: structured-result
+          path: /tmp/structured-result.json
+
+  post-comment:
+    name: Post PR Comment
+    runs-on: ubuntu-latest
+    needs: [triage, generic-review, structured-review]
+    if: always() && needs.triage.result == 'success' && (needs.generic-review.result == 'success' || needs.structured-review.result == 'success')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download generic result
+        if: needs.generic-review.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: generic-result
+          path: /tmp/
+
+      - name: Download structured result
+        if: needs.structured-review.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: structured-result
+          path: /tmp/
+
+      - name: Format comment
+        env:
+          MODE: ${{ needs.triage.outputs.mode }}
+        run: |
+          if [ "$MODE" = "generic" ]; then
+            python -m reviewer format --input /tmp/generic-result.txt > /tmp/comment.md
+          elif [ "$MODE" = "structured" ]; then
+            python -m reviewer format --input /tmp/structured-result.json > /tmp/comment.md
+          else
+            python -m reviewer format \
+              --input /tmp/structured-result.json \
+              --generic /tmp/generic-result.txt \
+              > /tmp/comment.md
+          fi
+
+      - name: Post comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const comment = fs.readFileSync('/tmp/comment.md', 'utf8');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('AI Review Report')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment,
+              });
+            }
+
+  skip-review:
+    name: Skip Review (mudança trivial)
+    runs-on: ubuntu-latest
+    needs: triage
+    if: needs.triage.outputs.mode == 'auto' && needs.triage.outputs.should_review == 'false'
+
+    steps:
+      - name: Post skip comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '## AI Review Report\n\n✅ **APROVADO** — Mudança trivial detectada pela triagem. Review completo não necessário.',
+            });

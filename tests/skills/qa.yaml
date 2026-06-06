@@ -1,0 +1,30 @@
+- description: "QA - detecta endpoint sem teste"
+  vars:
+    diff: |
+      diff --git a/app-example/handlers/framework.py b/app-example/handlers/framework.py
+      +@app.get("/frameworks/{id}/details")
+      +def get_framework_details(id: str):
+      +    return {"id": id, "details": "..."}
+  system: "{{file '.claude/skills/qa/SKILL.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: |
+        JSON.parse(output).issues.some(i =>
+          i.toLowerCase().includes("test") || i.toLowerCase().includes("teste")
+        )
+
+- description: "QA - PR sem problemas não levanta falsos positivos"
+  vars:
+    diff: |
+      diff --git a/app-example/tests/test_framework.py b/app-example/tests/test_framework.py
+      +def test_get_framework_details():
+      +    response = client.get("/frameworks/rise/details")
+      +    assert response.status_code == 200
+  system: "{{file '.claude/skills/qa/SKILL.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).issues.length === 0

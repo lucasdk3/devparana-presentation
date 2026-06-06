@@ -1,0 +1,65 @@
+id: app-example
+name: App Example
+type: service
+
+description: Exemplo de aplicação para demonstrar o uso do AI Reviewer.
+
+repository: https://github.com/lucasdk3/devparana-presentation/app-example
+version: 1.0.0
+
+owner:
+  team: devparana
+  domain: presentation
+  system: app-example
+
+docs:
+  path: /docs
+  main: swagger.yaml
+
+readme:
+  path: /README.md
+
+changelog:
+  path: /CHANGELOG.md
+
+ai:
+  path: .ai
+  skillsPath: skills
+  specsPath: specs
+
+api:
+  path: /docs/swagger.yaml
+
+tasks:
+  path: Taskfile.yaml
+
+connections:
+  calledBy: []
+  calls:
+    - name: aws-secrets-manager
+      type: service
+      endpoints:
+        - /secretsmanager
+    - name: postgres
+      type: database
+    - name: pwpush
+      type: service
+      endpoints:
+        - /p.json
+    - name: gitlab
+      type: service
+      endpoints:
+        - /api/v4
+
+tags:
+  - example
+  - presentation
+  - devparana
+
+environments:
+  - dev
+  - stg
+  - prd
+
+links:
+  runbook: /docs/runbooks/deploy.md

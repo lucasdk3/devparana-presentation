@@ -1,0 +1,41 @@
+- description: "Tech Lead - detecta Swagger não atualizado"
+  vars:
+    diff: |
+      diff --git a/app-example/handlers/framework.py b/app-example/handlers/framework.py
+      +@app.get("/frameworks/{id}/details")
+      +def get_framework_details(id: str):
+      +    return {"id": id, "details": "..."}
+  system: "{{file '.claude/skills/tech-lead/SKILL.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: |
+        JSON.parse(output).issues.some(i =>
+          i.toLowerCase().includes("swagger") || i.toLowerCase().includes("doc")
+        )
+
+- description: "Tech Lead - detecta breaking change em variável de ambiente"
+  vars:
+    diff: |
+      diff --git a/app-example/main.py b/app-example/main.py
+      -JWT_SECRET = os.getenv("JWT_SECRET")
+      +AUTH_SECRET = os.getenv("AUTH_SECRET")
+  system: "{{file '.claude/skills/tech-lead/SKILL.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).breaking_changes.length > 0
+
+- description: "Tech Lead - mudança sem breaking change não gera alerta"
+  vars:
+    diff: |
+      diff --git a/app-example/handlers/framework.py b/app-example/handlers/framework.py
+      +    print(f"fetching framework {id}")
+  system: "{{file '.claude/skills/tech-lead/SKILL.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).breaking_changes.length === 0

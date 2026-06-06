@@ -1,0 +1,30 @@
+diff --git a/app-example/main.py b/app-example/main.py
+index abc1234..def5678 100644
+--- a/app-example/main.py
++++ b/app-example/main.py
+@@ -1,7 +1,7 @@
+ import os
+ from fastapi import FastAPI
+ from app_example.handlers.framework import router as framework_router
+
+-JWT_SECRET = os.getenv("JWT_SECRET")
++AUTH_SECRET = os.getenv("AUTH_SECRET")
+
+ app = FastAPI(title="Framework API", version="1.0.0")
+ app.include_router(framework_router)
+diff --git a/app-example/handlers/framework.py b/app-example/handlers/framework.py
+index abc1234..def5678 100644
+--- a/app-example/handlers/framework.py
++++ b/app-example/handlers/framework.py
+@@ -14,8 +14,6 @@ FRAMEWORKS = {
+
+ @router.get("/frameworks", response_model=list[dict])
+ def list_frameworks():
+     return [{"id": f.id, "name": f.name} for f in FRAMEWORKS.values()]
+
+-@router.get("/frameworks/{id}", response_model=Framework)
+-def get_framework(id: str):
+-    framework = FRAMEWORKS.get(id)
+-    if not framework:
+-        raise HTTPException(status_code=404, detail="Framework not found")
+-    return framework

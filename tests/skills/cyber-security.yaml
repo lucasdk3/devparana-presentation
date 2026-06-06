@@ -1,0 +1,28 @@
+- description: "Cyber Security - detecta segredo hardcoded"
+  vars:
+    diff: |
+      diff --git a/app-example/handlers/framework.py b/app-example/handlers/framework.py
+      +    AUTH_SECRET = "hardcoded-secret-123"
+      +    return {"id": id, "secret": AUTH_SECRET}
+  system: "{{file '.claude/skills/cyber-security/SKILL.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).issues.length > 0
+    - type: javascript
+      value: JSON.parse(output).severity !== "none"
+
+- description: "Cyber Security - não gera falso positivo em mudança segura"
+  vars:
+    diff: |
+      diff --git a/app-example/tests/test_framework.py b/app-example/tests/test_framework.py
+      +def test_list_frameworks():
+      +    response = client.get("/frameworks")
+      +    assert response.status_code == 200
+  system: "{{file '.claude/skills/cyber-security/SKILL.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).severity === "none"

@@ -1,0 +1,15 @@
+description: "Skill validation tests"
+
+defaultTest:
+  options:
+    provider:
+      id: anthropic:messages:claude-haiku-4-5-20251001
+
+tests:
+  - $ref: "./triage.yaml"
+  - $ref: "./qa.yaml"
+  - $ref: "./tech-lead.yaml"
+  - $ref: "./cyber-security.yaml"
+  - $ref: "./product-manager.yaml"
+  - $ref: "./sre.yaml"
+  - $ref: "./approval.yaml"

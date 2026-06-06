@@ -1,0 +1,37 @@
+- description: "Approval - reprova quando há issues críticos"
+  vars:
+    qa_result: |
+      {"issues": ["Endpoint sem teste"]}
+    techlead_result: |
+      {"issues": ["Swagger não atualizado"], "breaking_changes": ["JWT_SECRET renomeado para AUTH_SECRET"]}
+    cyber_result: |
+      {"issues": ["Segredo hardcoded detectado"], "severity": "critical"}
+  system: "{{file '.claude/skills/approval/SKILL.md'}}"
+  prompt: |
+    QA: {{qa_result}}
+    Tech Lead: {{techlead_result}}
+    Cyber Security: {{cyber_result}}
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).approved === false
+    - type: javascript
+      value: JSON.parse(output).issues.length > 0
+
+- description: "Approval - aprova quando não há issues"
+  vars:
+    qa_result: |
+      {"issues": []}
+    techlead_result: |
+      {"issues": [], "breaking_changes": []}
+    cyber_result: |
+      {"issues": [], "severity": "none"}
+  system: "{{file '.claude/skills/approval/SKILL.md'}}"
+  prompt: |
+    QA: {{qa_result}}
+    Tech Lead: {{techlead_result}}
+    Cyber Security: {{cyber_result}}
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).approved === true

@@ -1,0 +1,28 @@
+- description: "SRE - detecta risco em mudança de variável de ambiente sem fallback"
+  vars:
+    diff: |
+      diff --git a/app-example/main.py b/app-example/main.py
+      -JWT_SECRET = os.getenv("JWT_SECRET")
+      +AUTH_SECRET = os.getenv("AUTH_SECRET")
+  system: "{{file '.claude/skills/sre/SKILL.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).issues.length > 0
+    - type: javascript
+      value: JSON.parse(output).deployment_risk !== "none"
+
+- description: "SRE - mudança em testes não gera risco de deploy"
+  vars:
+    diff: |
+      diff --git a/app-example/tests/test_framework.py b/app-example/tests/test_framework.py
+      +def test_get_framework_not_found():
+      +    response = client.get("/frameworks/nonexistent")
+      +    assert response.status_code == 404
+  system: "{{file '.claude/skills/sre/SKILL.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).deployment_risk === "none"

@@ -1,0 +1,69 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Framework API",
+    "version": "1.0.0",
+    "description": "API for listing Prompt Engineering frameworks"
+  },
+  "paths": {
+    "/frameworks": {
+      "get": {
+        "summary": "List all frameworks",
+        "operationId": "list_frameworks",
+        "responses": {
+          "200": {
+            "description": "List of frameworks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {"type": "string"},
+                      "name": {"type": "string"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/frameworks/{id}": {
+      "get": {
+        "summary": "Get framework by ID",
+        "operationId": "get_framework",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Framework details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {"type": "string"},
+                    "name": {"type": "string"},
+                    "description": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Framework not found"
+          }
+        }
+      }
+    }
+  }
+}

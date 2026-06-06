@@ -1,0 +1,53 @@
+- description: "Triage - aciona qa e tech-lead para novo endpoint"
+  vars:
+    diff: |
+      diff --git a/app-example/handlers/framework.py b/app-example/handlers/framework.py
+      +@app.get("/frameworks/{id}/details")
+      +def get_framework_details(id: str):
+      +    return {"id": id, "details": "..."}
+  system: "{{file '.claude/prompts/triage.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).agents.includes("qa")
+    - type: javascript
+      value: JSON.parse(output).agents.includes("tech-lead")
+
+- description: "Triage - aciona cyber-security para segredo hardcoded"
+  vars:
+    diff: |
+      diff --git a/app-example/main.py b/app-example/main.py
+      +API_KEY = "sk-1234567890abcdef"
+  system: "{{file '.claude/prompts/triage.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).agents.includes("cyber-security")
+
+- description: "Triage - aciona tech-lead e sre para breaking change em variável"
+  vars:
+    diff: |
+      diff --git a/app-example/main.py b/app-example/main.py
+      -JWT_SECRET = os.getenv("JWT_SECRET")
+      +AUTH_SECRET = os.getenv("AUTH_SECRET")
+  system: "{{file '.claude/prompts/triage.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).agents.includes("sre") || JSON.parse(output).agents.includes("tech-lead")
+
+- description: "Triage - não aciona agentes para mudança trivial"
+  vars:
+    diff: |
+      diff --git a/app-example/handlers/framework.py b/app-example/handlers/framework.py
+      -    # TODO: melhorar este handler
+      +    # Handler de frameworks
+  system: "{{file '.claude/prompts/triage.md'}}"
+  prompt: "{{diff}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: JSON.parse(output).agents.length === 0
