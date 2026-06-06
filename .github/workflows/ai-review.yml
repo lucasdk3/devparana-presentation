@@ -203,6 +203,50 @@ jobs:
               });
             }
 
+  enforce:
+    name: AI Review Gate
+    runs-on: ubuntu-latest
+    needs: [triage, generic-review, structured-review, post-comment]
+    if: always() && needs.triage.result == 'success' && (needs.generic-review.result == 'success' || needs.structured-review.result == 'success')
+
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download structured result
+        if: needs.structured-review.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: structured-result
+          path: /tmp/
+
+      - name: Check approval
+        run: |
+          python3 - <<'EOF'
+          import json, sys, re, os
+
+          result_path = "/tmp/structured-result.json"
+          if not os.path.exists(result_path):
+              print("Nenhum resultado estruturado encontrado — assumindo aprovado.")
+              sys.exit(0)
+
+          content = open(result_path).read()
+          try:
+              result = json.loads(content)
+          except Exception:
+              match = re.search(r'\{.*\}', content, re.DOTALL)
+              result = json.loads(match.group()) if match else {"approved": True}
+
+          approved = result.get("approved", True)
+          if approved:
+              print("AI Review Gate: APROVADO")
+              sys.exit(0)
+          else:
+              print("AI Review Gate: REJEITADO — veja o comentário no PR para detalhes.")
+              sys.exit(1)
+          EOF
+
   skip-review:
     name: Skip Review (mudança trivial)
     runs-on: ubuntu-latest
