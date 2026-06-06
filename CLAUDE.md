@@ -143,8 +143,7 @@ Mapeamento de tipos para agentes (definido em `triage.py`):
 |---|---|---|---|
 | `ANTHROPIC_API_KEY` | Sim | — | Chave da API Anthropic |
 | `REVIEWER_MODEL` | Não | `claude-haiku-4-5-20251001` | Modelo usado em todas as chamadas |
-| `REVIEWER_TEMPERATURE` | Não | padrão do modelo | Temperatura (0.0 = determinístico, 1.0 = padrão Claude) |
-| `REVIEWER_MAX_TOKENS` | Não | sem limite | Limite de tokens para respostas dos agentes |
+| `REVIEWER_MAX_BUDGET_USD` | Não | sem limite | Limite de custo em USD por chamada ao agente |
 | `REVIEWER_TRIAGE_MAX_TOKENS` | Não | `256` | Limite de tokens para a triagem via IA |
 
 A configuração é centralizada em `reviewer/config.py` e lida uma vez no import.

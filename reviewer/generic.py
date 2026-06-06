@@ -10,8 +10,7 @@ async def run_generic_review(diff: str) -> str:
     options = ClaudeAgentOptions(
         model=config.MODEL,
         allowed_tools=[],
-        **({"temperature": config.TEMPERATURE} if config.TEMPERATURE is not None else {}),
-        **({"max_tokens": config.MAX_TOKENS} if config.MAX_TOKENS is not None else {}),
+        **({"max_budget_usd": config.MAX_BUDGET_USD} if config.MAX_BUDGET_USD is not None else {}),
     )
 
     async for message in query(prompt=prompt, options=options):
