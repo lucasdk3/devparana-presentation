@@ -1,5 +1,8 @@
+import logging
 from fastapi import APIRouter, HTTPException
 from app_example.models.framework import Framework
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -14,6 +17,7 @@ FRAMEWORKS = {
 
 @router.get("/frameworks", response_model=list[dict])
 def list_frameworks():
+    logger.info("Listing all frameworks")
     return [{"id": f.id, "name": f.name} for f in FRAMEWORKS.values()]
 
 @router.get("/frameworks/{id}", response_model=Framework)

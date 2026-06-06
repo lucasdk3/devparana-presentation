@@ -21,3 +21,9 @@ def test_get_framework_rise():
 def test_get_framework_not_found():
     response = client.get("/frameworks/nonexistent")
     assert response.status_code == 404
+
+def test_list_frameworks_returns_all():
+    response = client.get("/frameworks")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 6
