@@ -235,13 +235,41 @@ PR aberto
     │         se tipo conhecido → determinístico (sem IA)
     │         se desconhecido   → triagem via IA
     │
-    ├── trivial ──────────────► comenta "aprovado automaticamente"
+    ├── trivial ──────────────► [skip-review] → comenta "aprovado automaticamente"
     │
     └── não trivial
             │
             ├── [generic-review]    ─┐
-            └── [structured-review] ─┴► [post-comment]
+            └── [structured-review] ─┴► [post-comment] → [enforce]
 ```
+
+### Comentários de PR
+
+O agente posta comentários diferenciados conforme o modo:
+
+| Modo | Título do comentário |
+|---|---|
+| `generic` | `## AI Review Generic` |
+| `structured` | `## AI Review Structured` |
+| `auto` | `## AI Review Structured` (com genérico colapsado dentro) |
+
+O comentário é atualizado a cada push — não duplicado.
+
+### AI Review Gate
+
+O job **AI Review Gate** faz `exit 1` quando o review estruturado retorna `approved: false`, bloqueando o merge.
+
+Para ativar como check obrigatório:
+
+> _Settings → Branches → Branch protection rules → main → Require status checks → `AI Review Gate`_
+
+### Variáveis configuráveis no repositório
+
+| Variável (`vars.*`) | Padrão | Descrição |
+|---|---|---|
+| `REVIEWER_MODEL` | `claude-haiku-4-5-20251001` | Modelo usado em todas as chamadas |
+| `REVIEWER_MAX_BUDGET_USD` | sem limite | Limite de custo em USD por chamada ao agente |
+| `REVIEWER_TRIAGE_MAX_TOKENS` | `256` | Limite de tokens para a triagem via IA |
 
 **Secret necessário no repositório:**
 
