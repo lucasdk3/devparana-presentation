@@ -1,11 +1,12 @@
 import json
 
 
-def format_as_comment(result: str, generic_result: str | None = None) -> str:
+def format_as_comment(result: str, generic_result: str | None = None, title: str | None = None) -> str:
     try:
         data = json.loads(result)
     except json.JSONDecodeError:
-        return f"## AI Review\n\n{result}"
+        heading = title or "AI Review"
+        return f"## {heading}\n\n{result}"
 
     approved = data.get("approved", False)
     issues = data.get("issues", {})
@@ -14,8 +15,10 @@ def format_as_comment(result: str, generic_result: str | None = None) -> str:
     status_icon = "✅" if approved else "❌"
     status_label = "APROVADO" if approved else "REPROVADO"
 
+    heading = title or "AI Review Structured"
+
     lines = [
-        "## AI Review Report",
+        f"## {heading}",
         "",
         f"**Status:** {status_icon} {status_label}",
         "",
@@ -70,6 +73,19 @@ def format_as_comment(result: str, generic_result: str | None = None) -> str:
     ]
 
     return "\n".join(lines)
+
+
+def format_generic_as_comment(result: str) -> str:
+    heading = "AI Review Generic"
+    return "\n".join([
+        f"## {heading}",
+        "",
+        result.strip(),
+        "",
+        "---",
+        "",
+        "_Gerado automaticamente por [reviewer-agent](https://github.com/lucasdk3/devparana-presentation)_",
+    ])
 
 
 def _generic_section(generic_result: str) -> str:

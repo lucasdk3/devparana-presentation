@@ -4,7 +4,7 @@ import typer
 from reviewer.generic import run_generic_review
 from reviewer.structured import run_structured_review
 from reviewer.reports import print_comparison
-from reviewer.github import format_as_comment
+from reviewer.github import format_as_comment, format_generic_as_comment
 
 app = typer.Typer()
 review_app = typer.Typer()
@@ -93,19 +93,28 @@ def triage(
 
 @app.command("format")
 def format_comment(
-    input_file: str = typer.Option(None, "--input", help="Path to JSON result file (default: stdin)"),
+    input_file: str = typer.Option(None, "--input", help="Path to structured JSON result file"),
     generic_file: str = typer.Option(None, "--generic", help="Path to generic review result file"),
+    mode: str = typer.Option("auto", help="Review mode: generic, structured, or auto"),
 ):
-    """Format a review JSON result as a GitHub PR comment."""
+    """Format a review result as a GitHub PR comment."""
+    generic_result = None
+    if generic_file:
+        with open(generic_file) as f:
+            generic_result = f.read()
+
+    if mode == "generic":
+        typer.echo(format_generic_as_comment(generic_result or ""))
+        return
+
     if input_file:
         with open(input_file) as f:
             result = f.read()
     else:
         result = sys.stdin.read()
 
-    generic_result = None
-    if generic_file:
-        with open(generic_file) as f:
-            generic_result = f.read()
-
-    typer.echo(format_as_comment(result, generic_result=generic_result))
+    if mode == "structured":
+        typer.echo(format_as_comment(result, title="AI Review Structured"))
+    else:
+        # auto: structured comment with generic in collapsible section
+        typer.echo(format_as_comment(result, generic_result=generic_result, title="AI Review Structured"))
