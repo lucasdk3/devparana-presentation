@@ -1,4 +1,6 @@
 import json
+import os
+import subprocess
 
 
 def format_as_comment(result: str, generic_result: str | None = None, title: str | None = None) -> str:
@@ -77,15 +79,58 @@ def format_as_comment(result: str, generic_result: str | None = None, title: str
 
 def format_generic_as_comment(result: str) -> str:
     heading = "AI Review Generic"
-    return "\n".join([
-        f"## {heading}",
-        "",
-        result.strip(),
-        "",
-        "---",
-        "",
-        "_Gerado automaticamente por [reviewer-agent](https://github.com/lucasdk3/devparana-presentation)_",
-    ])
+
+    try:
+        data = json.loads(result)
+        approved = data.get("approved", False)
+        issues = data.get("issues", [])
+        summary = data.get("summary", "")
+
+        status_icon = "✅" if approved else "❌"
+        status_label = "APROVADO" if approved else "REPROVADO"
+
+        lines = [f"## {heading}", "", f"**Status:** {status_icon} {status_label}", ""]
+        if summary:
+            lines += [f"> {summary}", ""]
+        if issues:
+            lines += ["### Problemas encontrados", ""]
+            for issue in issues:
+                lines.append(f"- {issue}")
+            lines.append("")
+    except Exception:
+        lines = [f"## {heading}", "", result.strip(), ""]
+
+    lines += ["---", "", "_Gerado automaticamente por [reviewer-agent](https://github.com/lucasdk3/devparana-presentation)_"]
+    return "\n".join(lines)
+
+
+def post_to_github(comment: str, pr_number: int, title_marker: str) -> None:
+    """Post or update a PR comment using the gh CLI."""
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if not repo:
+        return
+
+    # Find existing bot comment with this title to update instead of duplicate
+    result = subprocess.run(
+        [
+            "gh", "api", f"repos/{repo}/issues/{pr_number}/comments",
+            "--jq", f'[.[] | select(.user.type == "Bot" and (.body | startswith("## {title_marker}")))] | first | .id // empty',
+        ],
+        capture_output=True,
+        text=True,
+    )
+    comment_id = result.stdout.strip()
+
+    if comment_id:
+        subprocess.run(
+            ["gh", "api", "--method", "PATCH", f"repos/{repo}/issues/comments/{comment_id}", "-f", f"body={comment}"],
+            check=True,
+        )
+    else:
+        subprocess.run(
+            ["gh", "pr", "comment", str(pr_number), "--repo", repo, "--body", comment],
+            check=True,
+        )
 
 
 def _generic_section(generic_result: str) -> str:

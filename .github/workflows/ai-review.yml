@@ -12,7 +12,7 @@ permissions:
 
 env:
   REVIEWER_MODEL: ${{ vars.REVIEWER_MODEL || 'claude-haiku-4-5-20251001' }}
-  REVIEWER_MAX_BUDGET_USD: ${{ vars.REVIEWER_MAX_BUDGET_USD || '' }}
+  REVIEWER_MAX_TOKENS: ${{ vars.REVIEWER_MAX_TOKENS || '4096' }}
   REVIEWER_TRIAGE_MAX_TOKENS: ${{ vars.REVIEWER_TRIAGE_MAX_TOKENS || '256' }}
 
 jobs:
@@ -75,15 +75,12 @@ jobs:
       - name: Run generic review
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python -m reviewer review generic --diff /tmp/pr.diff > /tmp/generic-result.txt
-          cat /tmp/generic-result.txt
-
-      - name: Upload generic result
-        uses: actions/upload-artifact@v4
-        with:
-          name: generic-result
-          path: /tmp/generic-result.txt
+          python -m reviewer review generic \
+            --diff /tmp/pr.diff \
+            --post-comment \
+            --pr-number ${{ github.event.pull_request.number }}
 
   structured-review:
     name: Structured Review
@@ -92,6 +89,8 @@ jobs:
     if: |
       needs.triage.outputs.mode == 'structured' ||
       (needs.triage.outputs.mode == 'auto' && needs.triage.outputs.should_review == 'true')
+    outputs:
+      approved: ${{ steps.review.outputs.approved }}
 
     steps:
       - uses: actions/checkout@v4
@@ -109,163 +108,35 @@ jobs:
         run: git diff origin/${{ github.base_ref }}...HEAD -- app-example/ > /tmp/pr.diff
 
       - name: Run structured review
+        id: review
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python -m reviewer review structured \
             --diff /tmp/pr.diff \
             --context-dir app-example \
             --pr-title "${{ github.event.pull_request.title }}" \
-            > /tmp/structured-result.json
-          cat /tmp/structured-result.json
-
-      - name: Upload structured result
-        uses: actions/upload-artifact@v4
-        with:
-          name: structured-result
-          path: /tmp/structured-result.json
-
-  post-comment:
-    name: Post PR Comment
-    runs-on: ubuntu-latest
-    needs: [triage, generic-review, structured-review]
-    if: always() && needs.triage.result == 'success' && (needs.generic-review.result == 'success' || needs.structured-review.result == 'success')
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Download generic result
-        if: needs.generic-review.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: generic-result
-          path: /tmp/
-
-      - name: Download structured result
-        if: needs.structured-review.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: structured-result
-          path: /tmp/
-
-      - name: Format comment
-        env:
-          MODE: ${{ needs.triage.outputs.mode }}
-        run: |
-          if [ "$MODE" = "generic" ]; then
-            python -m reviewer format --generic /tmp/generic-result.txt --mode generic > /tmp/comment.md
-          elif [ "$MODE" = "structured" ]; then
-            python -m reviewer format --input /tmp/structured-result.json --mode structured > /tmp/comment.md
-          else
-            python -m reviewer format \
-              --input /tmp/structured-result.json \
-              --generic /tmp/generic-result.txt \
-              --mode auto \
-              > /tmp/comment.md
-          fi
-
-      - name: Post comment
-        env:
-          MODE: ${{ needs.triage.outputs.mode }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const comment = fs.readFileSync('/tmp/comment.md', 'utf8');
-            const mode = process.env.MODE;
-
-            const titleMarker = mode === 'generic' ? 'AI Review Generic' : 'AI Review Structured';
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-
-            const botComment = comments.find(c =>
-              c.user.type === 'Bot' && c.body.includes(titleMarker)
-            );
-
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: comment,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: comment,
-              });
-            }
+            --post-comment \
+            --pr-number ${{ github.event.pull_request.number }} \
+            --github-output
 
   enforce:
     name: AI Review Gate
     runs-on: ubuntu-latest
-    needs: [triage, generic-review, structured-review, post-comment]
-    if: always() && needs.triage.result == 'success' && (needs.generic-review.result == 'success' || needs.structured-review.result == 'success')
+    needs: [triage, structured-review]
+    if: always() && needs.triage.result == 'success' && needs.structured-review.result == 'success'
 
     steps:
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Download structured result
-        if: needs.structured-review.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: structured-result
-          path: /tmp/
-
       - name: Check approval
         run: |
-          python3 - <<'EOF'
-          import json, sys, re, os
-
-          result_path = "/tmp/structured-result.json"
-          if not os.path.exists(result_path):
-              print("Nenhum resultado estruturado encontrado — assumindo aprovado.")
-              sys.exit(0)
-
-          content = open(result_path).read()
-
-          result = None
-          try:
-              result = json.loads(content)
-          except Exception:
-              # Model may wrap JSON in markdown or add extra text — scan for first valid object
-              decoder = json.JSONDecoder()
-              for match in re.finditer(r'\{', content):
-                  try:
-                      obj, _ = decoder.raw_decode(content, match.start())
-                      if "approved" in obj:
-                          result = obj
-                          break
-                  except Exception:
-                      continue
-
-          if result is None:
-              print("AI Review Gate: não foi possível parsear resultado — assumindo aprovado.")
-              sys.exit(0)
-
-          approved = result.get("approved", True)
-          if approved:
-              print("AI Review Gate: APROVADO")
-              sys.exit(0)
-          else:
-              print("AI Review Gate: REJEITADO — veja o comentário no PR para detalhes.")
-              sys.exit(1)
-          EOF
+          approved="${{ needs.structured-review.outputs.approved }}"
+          if [ "$approved" = "false" ]; then
+            echo "AI Review Gate: REJEITADO — veja o comentário no PR para detalhes."
+            exit 1
+          else
+            echo "AI Review Gate: APROVADO"
+          fi
 
   skip-review:
     name: Skip Review (mudança trivial)
@@ -275,12 +146,11 @@ jobs:
 
     steps:
       - name: Post skip comment
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: '## AI Review Structured\n\n✅ **APROVADO** — Mudança trivial detectada pela triagem. Review completo não necessário.',
-            });
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --body "## AI Review Structured
+
+          ✅ **APROVADO** — Mudança trivial detectada pela triagem. Review completo não necessário."

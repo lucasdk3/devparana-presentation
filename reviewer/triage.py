@@ -124,15 +124,11 @@ def run_triage(diff: str, pr_title: str | None = None) -> TriageResult:
     prompt_template = open(".claude/prompts/triage.md").read()
     client = anthropic.Anthropic()
 
-    create_kwargs: dict = dict(
+    response = client.messages.create(
         model=config.MODEL,
         max_tokens=config.TRIAGE_MAX_TOKENS,
         messages=[{"role": "user", "content": f"{prompt_template}\n\n{diff}"}],
     )
-    if config.TEMPERATURE is not None:
-        create_kwargs["temperature"] = config.TEMPERATURE
-
-    response = client.messages.create(**create_kwargs)
 
     raw = response.content[0].text.strip()
     data = json.loads(raw)
