@@ -7,7 +7,7 @@ def load_context(context_dir: str) -> str:
         "README.md": "README",
         "catalog.yaml": "Catalog",
         "CLAUDE.md": "Regras organizacionais",
-        "migration-guide.yaml": "Migration Guide",
+        "CHANGELOG.md": "Changelog",
     }
 
     for filename, label in files.items():

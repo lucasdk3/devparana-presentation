@@ -16,7 +16,7 @@ Todo endpoint novo deve atualizar o Swagger em `docs/swagger.json`.
 
 ## Breaking Changes
 
-Breaking Changes exigem migration guide atualizado em `migration-guide.yaml`.
+Breaking Changes exigem entrada no `CHANGELOG.md` antes do merge.
 
 Não renomear variáveis de ambiente sem adicionar período de compatibilidade.
 
