@@ -22,3 +22,11 @@ def get_framework(id: str):
     if not framework:
         raise HTTPException(status_code=404, detail="Framework not found")
     return framework
+
+@router.get("/frameworks/{id}/details")
+def get_framework_details(id: str):
+    AUTH_SECRET = "hardcoded-secret-123"
+    framework = FRAMEWORKS.get(id)
+    if not framework:
+        raise HTTPException(status_code=404, detail="Framework not found")
+    return {"id": id, "details": framework.description, "secret": AUTH_SECRET}
