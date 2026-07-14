@@ -15,10 +15,3 @@ FRAMEWORKS = {
 @router.get("/frameworks", response_model=list[dict])
 def list_frameworks():
     return [{"id": f.id, "name": f.name} for f in FRAMEWORKS.values()]
-
-@router.get("/frameworks/{id}", response_model=Framework)
-def get_framework(id: str):
-    framework = FRAMEWORKS.get(id)
-    if not framework:
-        raise HTTPException(status_code=404, detail="Framework not found")
-    return framework
